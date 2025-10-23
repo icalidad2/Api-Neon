@@ -33,8 +33,47 @@ app.post("/insertar_movimiento", async (req, res) => {
   try {
     const m = req.body;
 
+    // 🔍 Validación 1: ID único (no duplicado)
+    const existe = await pool.query(
+      "SELECT 1 FROM movimientos_test WHERE id_movimiento = $1 LIMIT 1",
+      [m.ID_Movimiento]
+    );
+
+    if (existe.rowCount > 0) {
+      return res.json({
+        ok: false,
+        mensaje: `⚠️ El movimiento ${m.ID_Movimiento} ya existe. Registro duplicado omitido.`,
+      });
+    }
+
+    // 🔍 Validación 2: Tipo de movimiento permitido
+    const movimientosPermitidos = [
+      "Entrada de Materia Prima",
+      "Entrada Interna de Producción",
+      "Surtido de Ordenes",
+      "Devolución Interna",
+      "Ajuste de Inventario"
+    ];
+
+    if (!movimientosPermitidos.includes(m["Tipo de Movimiento"])) {
+      return res.json({
+        ok: false,
+        mensaje: `⚠️ Tipo de movimiento no permitido: "${m["Tipo de Movimiento"]}".`,
+      });
+    }
+
+    // 🔍 Validación 3: Cantidad numérica y positiva
+    const cantidad = parseFloat(m.Cantidad);
+    if (isNaN(cantidad) || cantidad <= 0) {
+      return res.json({
+        ok: false,
+        mensaje: `⚠️ Cantidad inválida: "${m.Cantidad}". Debe ser un número positivo.`,
+      });
+    }
+
+    // 🧾 Inserción si todas las validaciones pasan
     await pool.query(
-      `INSERT INTO movimientos (
+      `INSERT INTO movimientos_test (
         id_movimiento, fecha_hora, tipo_movimiento, origen, producto,
         color_disenio, cantidad, proveedor, lote_proveedor, numero_analisis,
         orden_produccion, orden_compra, cliente, quien_entrega, quien_recibe,
@@ -48,13 +87,13 @@ app.post("/insertar_movimiento", async (req, res) => {
       )`,
       [
         m.ID_Movimiento, m["Fecha y Hora"], m["Tipo de Movimiento"], m.Origen, m.Producto,
-        m["Color/Diseño"], m.Cantidad, m.Proveedor, m["Lote del Proveedor"], m["Número de Analisis"],
+        m["Color/Diseño"], cantidad, m.Proveedor, m["Lote del Proveedor"], m["Número de Analisis"],
         m["Orden de Producción"], m["Orden de Compra"], m.Cliente, m["Quien Entrega"], m["Quien Recibe"],
         m.Observaciones, m.Inventario_ID, m.ID_Solicitud, m.id_detalle, m.reff_movimiento, m.producto_form
       ]
     );
 
-    res.json({ ok: true, mensaje: "Movimiento insertado correctamente ✅" });
+    res.json({ ok: true, mensaje: `Movimiento ${m.ID_Movimiento} insertado correctamente ✅` });
 
   } catch (e) {
     console.error("❌ Error al insertar movimiento:", e.message);
