@@ -73,7 +73,7 @@ app.post("/insertar_movimiento", async (req, res) => {
 
     // 🧾 Inserción si todas las validaciones pasan
     await pool.query(
-      `INSERT INTO movimientos_test (
+      `INSERT INTO movimientos (
         id_movimiento, fecha_hora, tipo_movimiento, origen, producto,
         color_disenio, cantidad, proveedor, lote_proveedor, numero_analisis,
         orden_produccion, orden_compra, cliente, quien_entrega, quien_recibe,
