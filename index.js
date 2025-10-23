@@ -35,7 +35,7 @@ app.post("/insertar_movimiento", async (req, res) => {
 
     // 🔍 Validación 1: ID único (no duplicado)
     const existe = await pool.query(
-      "SELECT 1 FROM movimientos_test WHERE id_movimiento = $1 LIMIT 1",
+      "SELECT 1 FROM movimientos WHERE id_movimiento = $1 LIMIT 1",
       [m.ID_Movimiento]
     );
 
