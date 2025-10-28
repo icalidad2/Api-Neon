@@ -51,7 +51,8 @@ app.post("/sync_movimiento", async (req, res) => {
       "Entrada Interna de Producción",
       "Surtido de Ordenes",
       "Devolución Interna",
-      "Ajuste de Inventario"
+      "Ajuste de Inventario",
+      "Envio de Producto Terminado"
     ];
 
     if (!movimientosPermitidos.includes(m["Tipo de Movimiento"])) {
