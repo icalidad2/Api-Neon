@@ -84,9 +84,12 @@ app.use((err, req, res, next) => {
 
 // ---------- START Y GRACEFUL SHUTDOWN ----------
 const PORT = process.env.PORT || 3000;
-const server = app.listen(PORT, () => {
-  console.log(`✅ API lista en puerto ${PORT}`);
+const HOST = "0.0.0.0";
+
+const server = app.listen(PORT, HOST, () => {
+  console.log(`✅ API lista en ${HOST}:${PORT}`);
 });
+
 
 // cerrar pool y servidor limpio
 const shutdown = async (signal) => {
