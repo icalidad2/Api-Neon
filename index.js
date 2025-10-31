@@ -1,192 +1,118 @@
+// index.js
 import express from "express";
-import pkg from "pg";
 import dotenv from "dotenv";
+import morgan from "morgan";
+import helmet from "helmet";
+import cors from "cors";
+import rateLimit from "express-rate-limit";
+import compression from "compression";
+import movimientosRouter from "./routes/movimientos.js";
+import { pool } from "./db.js"; // usamos el pool para shutdown
+
 dotenv.config();
-
-const { Pool } = pkg;
 const app = express();
-app.use(express.json());
 
-// 🔹 Conexión a Neon
-const pool = new Pool({
-  connectionString: process.env.NEON_URL,
-  ssl: { rejectUnauthorized: false }
+// ---------- CONFIGURACIONES BASICAS ----------
+app.set("trust proxy", true); // si lo pones en prod detrás de proxy/load balancer
+
+// Seguridad HTTP headers
+app.use(helmet());
+
+// Logging de peticiones (modo dev)
+if (process.env.NODE_ENV !== "production") {
+  app.use(morgan("dev"));
+} else {
+  app.use(morgan("combined"));
+}
+
+// CORS - ajusta el origen según tu caso
+const corsOptions = {
+  origin: process.env.CORS_ORIGIN || "*", // en prod mete tu dominio aquí
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+};
+app.use(cors(corsOptions));
+
+// Compresión de respuesta
+app.use(compression());
+
+// Limitar tamaño de petición y parseo JSON
+app.use(express.json({ limit: "200kb" })); // ajusta según necesidades
+app.use(express.urlencoded({ extended: true, limit: "200kb" }));
+
+// Rate limiter básico
+const limiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minuto
+  max: parseInt(process.env.RATE_LIMIT_MAX || "120", 10), // número de requests por window
+  standardHeaders: true,
+  legacyHeaders: false
 });
+app.use(limiter);
 
-// ✅ Configurar formato latino de fecha (DD/MM/YYYY)
-pool.on("connect", async (client) => {
-  await client.query("SET datestyle = 'ISO, DMY';");
-});
-
-// 🔹 Endpoint raíz para verificar estado
-app.get("/", async (req, res) => {
+// ---------- RUTAS ----------
+// Health checks
+app.get("/health", (req, res) => res.json({ status: "ok", uptime: process.uptime() }));
+app.get("/ready", async (req, res) => {
   try {
-    const { rows } = await pool.query("SELECT NOW() as hora");
-    res.json({ estado: "OK", hora: rows[0].hora });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
+    // rápido ping a la BD
+    await pool.query("SELECT 1");
+    res.json({ ready: true });
+  } catch (err) {
+    res.status(503).json({ ready: false, error: err.message });
   }
 });
 
+// Ruta base
+app.get("/", (req, res) => {
+  res.json({ estado: "OK", hora: new Date().toISOString() });
+});
 
-// =============================================================
-// 🧩 NUEVO ENDPOINT: Sincronización con soporte INSERT + UPDATE
-// =============================================================
-app.post("/sync_movimiento", async (req, res) => {
+// Montar routers
+app.use("/", movimientosRouter);
+
+// ---------- MIDDLEWARE DE ERRORES ----------
+app.use((err, req, res, next) => {
+  console.error("Unhandled error:", err);
+  const status = err.status || 500;
+  res.status(status).json({
+    ok: false,
+    mensaje: err.message || "Error interno del servidor",
+    // en dev puedes incluir stack
+    ...(process.env.NODE_ENV !== "production" ? { stack: err.stack } : {})
+  });
+});
+
+// ---------- START Y GRACEFUL SHUTDOWN ----------
+const PORT = process.env.PORT || 3000;
+const server = app.listen(PORT, () => {
+  console.log(`✅ API lista en puerto ${PORT}`);
+});
+
+// cerrar pool y servidor limpio
+const shutdown = async (signal) => {
   try {
-    const m = req.body;
-
-    // --- 1️⃣ Validaciones básicas ---
-    if (!m.ID_Movimiento) {
-      return res.json({ ok: false, mensaje: "❌ Falta ID_Movimiento." });
-    }
-
-    const cantidad = parseFloat(m.Cantidad);
-    if (isNaN(cantidad) || cantidad <= 0) {
-      return res.json({ ok: false, mensaje: "⚠️ Cantidad inválida." });
-    }
-
-    const movimientosPermitidos = [
-      "Entrada de Materia Prima",
-      "Entrada Interna de Producción",
-      "Surtido de Ordenes",
-      "Devolución Interna",
-      "Ajuste de Inventario",
-      "Envio de Producto Terminado"
-    ];
-
-    if (!movimientosPermitidos.includes(m["Tipo de Movimiento"])) {
-      return res.json({
-        ok: false,
-        mensaje: `⚠️ Tipo de movimiento no permitido: "${m["Tipo de Movimiento"]}".`,
-      });
-    }
-
-    // --- 2️⃣ Buscar si ya existe el movimiento ---
-    const existe = await pool.query(
-      "SELECT * FROM movimientos WHERE id_movimiento = $1 LIMIT 1",
-      [m.ID_Movimiento]
-    );
-
-    // --- 3️⃣ Si no existe → INSERT ---
-    if (existe.rowCount === 0) {
-      await pool.query(
-        `INSERT INTO movimientos (
-          id_movimiento, fecha_hora, tipo_movimiento, origen, producto,
-          color_disenio, cantidad, proveedor, lote_proveedor, numero_analisis,
-          orden_produccion, orden_compra, cliente, quien_entrega, quien_recibe,
-          observaciones, inventario_id, id_solicitud, id_detalle, reff_movimiento, producto_form
-        )
-        VALUES (
-          $1, TO_TIMESTAMP($2, 'DD/MM/YYYY HH24:MI:SS'), $3, $4, $5,
-          $6, $7, $8, $9, $10,
-          $11, $12, $13, $14, $15,
-          $16, $17, $18, $19, $20, $21
-        )`,
-        [
-          m.ID_Movimiento, m["Fecha y Hora"], m["Tipo de Movimiento"], m.Origen, m.Producto,
-          m["Color/Diseño"], cantidad, m.Proveedor, m["Lote del Proveedor"], m["Número de Analisis"],
-          m["Orden de Producción"], m["Orden de Compra"], m.Cliente, m["Quien Entrega"], m["Quien Recibe"],
-          m.Observaciones, m.Inventario_ID, m.ID_Solicitud, m.id_detalle, m.reff_movimiento, m.producto_form
-        ]
-      );
-      return res.json({ ok: true, mensaje: `✅ Movimiento ${m.ID_Movimiento} insertado.` });
-    }
-
-    // --- 4️⃣ Si existe → verificar diferencias ---
-    const registroDB = existe.rows[0];
-    let cambios = [];
-
-    // Campos comparables
-    const campos = [
-      "tipo_movimiento","origen","producto","color_disenio","cantidad","proveedor",
-      "lote_proveedor","numero_analisis","orden_produccion","orden_compra","cliente",
-      "quien_entrega","quien_recibe","observaciones","inventario_id","id_solicitud",
-      "id_detalle","reff_movimiento","producto_form"
-    ];
-
-    campos.forEach(campo => {
-      const valDB = registroDB[campo] ?? "";
-      const valNuevo = (m[campo] ?? "").toString();
-      if (valDB.toString() !== valNuevo) cambios.push(campo);
+    console.log(`🔌 Recibido ${signal} — cerrando servidor...`);
+    server.close(async () => {
+      try {
+        await pool.end();
+        console.log("🟢 Pool DB cerrado. Proceso finalizado.");
+        process.exit(0);
+      } catch (err) {
+        console.error("❌ Error cerrando pool:", err);
+        process.exit(1);
+      }
     });
 
-    if (cambios.length === 0) {
-      return res.json({
-        ok: true,
-        mensaje: `⏭️ Movimiento ${m.ID_Movimiento} ya actualizado (sin cambios).`
-      });
-    }
+    // forzar salida si tarda mucho
+    setTimeout(() => {
+      console.warn("🚨 Shutdown forzado.");
+      process.exit(1);
+    }, 10_000).unref();
 
-    // --- 5️⃣ UPDATE solo de campos modificados ---
-    const setQuery = cambios.map((campo, idx) => `${campo} = $${idx + 2}`).join(", ");
-    const valores = cambios.map(c => m[c]);
-    await pool.query(
-      `UPDATE movimientos
-       SET ${setQuery}, fecha_actualizacion = NOW()
-       WHERE id_movimiento = $1`,
-      [m.ID_Movimiento, ...valores]
-    );
-
-    res.json({
-      ok: true,
-      mensaje: `🔁 Movimiento ${m.ID_Movimiento} actualizado (${cambios.length} campos).`,
-      campos_actualizados: cambios
-    });
-
-  } catch (e) {
-    console.error("❌ Error en sincronización:", e.message);
-    res.status(500).json({ ok: false, error: e.message });
+  } catch (err) {
+    console.error("❌ Error en shutdown:", err);
+    process.exit(1);
   }
-});
+};
 
-
-// =============================================================
-// 🔹 Endpoint legado para compatibilidad (solo inserta nuevos)
-// =============================================================
-app.post("/insertar_movimiento", async (req, res) => {
-  try {
-    const m = req.body;
-    const existe = await pool.query(
-      "SELECT 1 FROM movimientos WHERE id_movimiento = $1 LIMIT 1",
-      [m.ID_Movimiento]
-    );
-
-    if (existe.rowCount > 0) {
-      return res.json({
-        ok: false,
-        mensaje: `⚠️ El movimiento ${m.ID_Movimiento} ya existe. Registro duplicado omitido.`,
-      });
-    }
-
-    await pool.query(
-      `INSERT INTO movimientos (
-        id_movimiento, fecha_hora, tipo_movimiento, origen, producto,
-        color_disenio, cantidad, proveedor, lote_proveedor, numero_analisis,
-        orden_produccion, orden_compra, cliente, quien_entrega, quien_recibe,
-        observaciones, inventario_id, id_solicitud, id_detalle, reff_movimiento, producto_form
-      )
-      VALUES (
-        $1, TO_TIMESTAMP($2, 'DD/MM/YYYY HH24:MI:SS'), $3, $4, $5,
-        $6, $7, $8, $9, $10,
-        $11, $12, $13, $14, $15,
-        $16, $17, $18, $19, $20, $21
-      )`,
-      [
-        m.ID_Movimiento, m["Fecha y Hora"], m["Tipo de Movimiento"], m.Origen, m.Producto,
-        m["Color/Diseño"], m.Cantidad, m.Proveedor, m["Lote del Proveedor"], m["Número de Analisis"],
-        m["Orden de Producción"], m["Orden de Compra"], m.Cliente, m["Quien Entrega"], m["Quien Recibe"],
-        m.Observaciones, m.Inventario_ID, m.ID_Solicitud, m.id_detalle, m.reff_movimiento, m.producto_form
-      ]
-    );
-
-    res.json({ ok: true, mensaje: `Movimiento ${m.ID_Movimiento} insertado correctamente ✅` });
-
-  } catch (e) {
-    console.error("❌ Error al insertar movimiento:", e.message);
-    res.status(500).json({ ok: false, error: e.message });
-  }
-});
-
-// 🔹 Arrancar el servidor
-app.listen(3000, () => console.log("✅ API lista en puerto 3000"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));
