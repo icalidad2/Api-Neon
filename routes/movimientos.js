@@ -10,15 +10,15 @@ router.post("/sync_movimiento", async (req, res) => {
 
     // ✅ Validaciones con nombres SQL correctos
     if (!m.id_movimiento) {
-      return res.json({ ok: false, mensaje: "❌ Falta id_movimiento" });
+      return res.status(400).json({ ok: false, mensaje: "❌ Falta id_movimiento" });
     }
     if (!m.tipo_movimiento) {
-      return res.json({ ok: false, mensaje: "❌ Falta tipo_movimiento" });
+      return res.status(400).json({ ok: false, mensaje: "❌ Falta tipo_movimiento" });
     }
 
     const cantidad = parseFloat(m.cantidad || 0);
     if (isNaN(cantidad) || cantidad <= 0) {
-      return res.json({ ok: false, mensaje: "⚠️ cantidad inválida" });
+      return res.status(400).json({ ok: false, mensaje: "⚠️ cantidad inválida" });
     }
 
     // 🔹 Insertar en base de datos
@@ -31,17 +31,16 @@ router.post("/sync_movimiento", async (req, res) => {
 
     res.json({
       ok: true,
-      mensaje: `✅ Movimiento ${m.id_movimiento} insertado correctamente en Neon.`
+      mensaje: `✅ Movimiento ${m.id_movimiento} insertado correctamente en Neon.`,
     });
   } catch (err) {
     console.error("❌ Error completo en inserción:", err);
     res.status(500).json({
       ok: false,
       mensaje: "Error al insertar en Neon",
-      error: err.message || "Sin mensaje de error"
+      error: err.message || "Sin mensaje de error",
     });
   }
 });
-
 
 export default router;

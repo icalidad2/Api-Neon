@@ -1,6 +1,8 @@
 // index.js
-import express from "express";
 import dotenv from "dotenv";
+dotenv.config();
+
+import express from "express";
 import morgan from "morgan";
 import helmet from "helmet";
 import cors from "cors";
@@ -9,7 +11,6 @@ import compression from "compression";
 import movimientosRouter from "./routes/movimientos.js";
 import { pool } from "./db.js"; // usamos el pool para shutdown
 
-dotenv.config();
 const app = express();
 
 // ---------- CONFIGURACIONES BASICAS ----------
