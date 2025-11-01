@@ -1,5 +1,5 @@
 import express from "express";
-import { pool } from "#db";  // 👈 sube dos niveles desde /routes/produccion
+import { pool } from "#db"; // 🔹 ajusta ruta según tu estructura
 
 const router = express.Router();
 
@@ -15,22 +15,20 @@ function normalizarClaves(obj) {
     "fecha_inicio": "fecha_inicio",
     "producto_a_fabricar": "producto",
     "producto": "producto",
+    "lote": "lote",
     "maquina": "maquina",
     "cantidad_solicitada": "cantidad_solicitada",
-    "cantidad_fabricada": "cantidad_fabricada", // no se guarda, pero se acepta
+    "cantidad_fabricada": "cantidad_fabricada",
     "unidad": "unidad",
-    "prioridad": "prioridad",
     "fecha_requerida": "fecha_requerida",
-    "fecha_de_cierre": "fecha_cierre",
-    "fecha_cierre": "fecha_cierre",
+    "estado": "estado",
     "qr_info": "qr_info",
     "qr_url": "qr_url",
     "responsable_de_produccion": "responsable",
     "responsable": "responsable",
-    "notas": "notas",
-    "estado": "estado",
-    "cerrar_orden": "cerrar_orden",
-    "suspender_orden": "suspender_orden"
+    "fecha_de_cierre": "fecha_cierre",
+    "fecha_cierre": "fecha_cierre",
+    "notas": "notas"
   };
 
   const nuevo = {};
@@ -49,7 +47,7 @@ router.post("/sync_piordenesproduccion", async (req, res) => {
     const o = normalizarClaves(req.body);
     console.log("📦 Datos recibidos y normalizados:", o);
 
-    // 🔹 Validaciones mínimas
+    // 🔹 Validaciones básicas
     if (!o.id_orden) {
       return res.status(400).json({ ok: false, mensaje: "❌ Falta id_orden" });
     }
@@ -59,50 +57,51 @@ router.post("/sync_piordenesproduccion", async (req, res) => {
       return res.status(400).json({ ok: false, mensaje: "⚠️ cantidad_solicitada inválida" });
     }
 
-    // 🔹 Preparar valores (ignoramos columnas que no existen)
+    // ======================================================
+    // 💾 Inserción o actualización idempotente (solo campos requeridos)
+    // ======================================================
     const valores = [
       o.id_orden,
       o.fecha_emision || null,
       o.fecha_inicio || null,
       o.producto || null,
+      o.lote || null,
       o.maquina || null,
       cantidadSolicitada,
+      o.cantidad_fabricada || 0,
       o.unidad || null,
-      o.prioridad || null,
       o.fecha_requerida || null,
-      o.fecha_cierre || null,
+      o.estado || null,
       o.qr_info || null,
       o.qr_url || null,
       o.responsable || null,
+      o.fecha_cierre || null,
       o.notas || null
     ];
 
-    // ======================================================
-    // 💾 Inserción o actualización idempotente
-    // ======================================================
     await pool.query(
       `INSERT INTO piordenesproduccion (
-        id_orden, fecha_emision, fecha_inicio, producto, maquina,
-        cantidad_solicitada, unidad, prioridad, fecha_requerida,
-        fecha_cierre, qr_info, qr_url, responsable, notas
+        id_orden, fecha_emision, fecha_inicio, producto, lote, maquina,
+        cantidad_solicitada, cantidad_fabricada, unidad, fecha_requerida,
+        estado, qr_info, qr_url, responsable, fecha_cierre, notas
       )
-      VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14
-      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
       ON CONFLICT (id_orden)
       DO UPDATE SET
         fecha_emision = EXCLUDED.fecha_emision,
         fecha_inicio = EXCLUDED.fecha_inicio,
         producto = EXCLUDED.producto,
+        lote = EXCLUDED.lote,
         maquina = EXCLUDED.maquina,
         cantidad_solicitada = EXCLUDED.cantidad_solicitada,
+        cantidad_fabricada = EXCLUDED.cantidad_fabricada,
         unidad = EXCLUDED.unidad,
-        prioridad = EXCLUDED.prioridad,
         fecha_requerida = EXCLUDED.fecha_requerida,
-        fecha_cierre = EXCLUDED.fecha_cierre,
+        estado = EXCLUDED.estado,
         qr_info = EXCLUDED.qr_info,
         qr_url = EXCLUDED.qr_url,
         responsable = EXCLUDED.responsable,
+        fecha_cierre = EXCLUDED.fecha_cierre,
         notas = EXCLUDED.notas;`,
       valores
     );
