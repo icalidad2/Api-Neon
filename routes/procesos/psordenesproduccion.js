@@ -1,5 +1,5 @@
 import express from "express";
-import { pool } from "#db";;
+import { pool } from "#db";
 
 const router = express.Router();
 
@@ -17,7 +17,6 @@ function normalizarClaves(obj) {
     "producto": "producto",
     "lote": "lote",
     "cantidad_solicitada": "cantidad_solicitada",
-    "cantidad_fabricada": "cantidad_fabricada",
     "unidad": "unidad",
     "fecha_requerida": "fecha_requerida",
     "estado": "estado",
@@ -46,15 +45,15 @@ router.post("/sync_psordenesproduccion", async (req, res) => {
     const o = normalizarClaves(req.body);
     console.log("📦 Datos recibidos y normalizados:", o);
 
-    // 🔹 Validación básica
     if (!o.id_orden) {
       return res.status(400).json({ ok: false, mensaje: "❌ Falta id_orden" });
     }
 
     const cantidadSolicitada = parseFloat(o.cantidad_solicitada || 0);
-    const cantidadFabricada = parseFloat(o.cantidad_fabricada || 0);
+    if (isNaN(cantidadSolicitada) || cantidadSolicitada <= 0) {
+      return res.status(400).json({ ok: false, mensaje: "⚠️ cantidad_solicitada inválida" });
+    }
 
-    // 🔹 Preparar valores
     const valores = [
       o.id_orden,
       o.fecha_emision || null,
@@ -62,7 +61,6 @@ router.post("/sync_psordenesproduccion", async (req, res) => {
       o.producto || null,
       o.lote || null,
       cantidadSolicitada,
-      cantidadFabricada,
       o.unidad || null,
       o.fecha_requerida || null,
       o.estado || null,
@@ -73,18 +71,13 @@ router.post("/sync_psordenesproduccion", async (req, res) => {
       o.notas || null
     ];
 
-    // ======================================================
-    // 💾 Inserción / actualización idempotente
-    // ======================================================
     await pool.query(
       `INSERT INTO psordenesproduccion (
         id_orden, fecha_emision, fecha_inicio, producto, lote,
-        cantidad_solicitada, cantidad_fabricada, unidad, fecha_requerida,
-        estado, qr_info, qr_url, responsable, fecha_cierre, notas
+        cantidad_solicitada, unidad, fecha_requerida, estado,
+        qr_info, qr_url, responsable, fecha_cierre, notas
       )
-      VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15
-      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
       ON CONFLICT (id_orden)
       DO UPDATE SET
         fecha_emision = EXCLUDED.fecha_emision,
@@ -92,7 +85,6 @@ router.post("/sync_psordenesproduccion", async (req, res) => {
         producto = EXCLUDED.producto,
         lote = EXCLUDED.lote,
         cantidad_solicitada = EXCLUDED.cantidad_solicitada,
-        cantidad_fabricada = EXCLUDED.cantidad_fabricada,
         unidad = EXCLUDED.unidad,
         fecha_requerida = EXCLUDED.fecha_requerida,
         estado = EXCLUDED.estado,
@@ -106,7 +98,7 @@ router.post("/sync_psordenesproduccion", async (req, res) => {
 
     res.json({
       ok: true,
-      mensaje: `✅ Orden ${o.id_orden} sincronizada correctamente en Neon.`,
+      mensaje: `✅ Orden PS ${o.id_orden} sincronizada correctamente en Neon.`,
     });
   } catch (err) {
     console.error("❌ Error en inserción de psordenesproduccion:", err);
