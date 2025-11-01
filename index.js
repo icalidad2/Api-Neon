@@ -9,6 +9,7 @@ import cors from "cors";
 import rateLimit from "express-rate-limit";
 import compression from "compression";
 import movimientosRouter from "./routes/movimientos.js";
+import inventarioRouter from "./routes/inventario.js";
 import { pool } from "./db.js"; // usamos el pool para shutdown
 
 const app = express();
@@ -69,6 +70,7 @@ app.get("/", (req, res) => {
 
 // Montar routers
 app.use("/", movimientosRouter);
+app.use("/", inventarioRouter);
 
 // ---------- MIDDLEWARE DE ERRORES ----------
 app.use((err, req, res, next) => {
