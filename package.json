@@ -1,6 +1,9 @@
 {
   "name": "api-neon",
   "type": "module",
+  "imports": {
+    "#db": "./db.js"
+  },
   "dependencies": {
     "compression": "^1.8.1",
     "cors": "^2.8.5",

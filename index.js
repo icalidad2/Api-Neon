@@ -14,7 +14,7 @@ import produccionpiRouter from "./routes/inyeccion/produccionpi.js";
 import produccionpsRouter from "./routes/procesos/produccionps.js";
 import psordenesproduccionRouter from "./routes/procesos/psordenesproduccion.js";
 import piordenesproduccionRouter from "./routes/inyeccion/piordenesproduccion.js";
-import { pool } from "../../db.js"; // usamos el pool para shutdown
+import { pool } from "#db";
 
 const app = express();
 
