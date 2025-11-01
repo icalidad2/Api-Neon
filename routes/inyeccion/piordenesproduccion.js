@@ -1,5 +1,5 @@
 import express from "express";
-import { pool } from "../../db.js";  // 👈 sube dos niveles desde /routes/produccion
+import { pool } from "#db";  // 👈 sube dos niveles desde /routes/produccion
 
 const router = express.Router();
 
