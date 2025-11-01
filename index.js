@@ -8,10 +8,12 @@ import helmet from "helmet";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import compression from "compression";
-import movimientosRouter from "./routes/movimientos.js";
-import inventarioRouter from "./routes/inventario.js";
-import produccionpiRouter from "./routes/produccionpi.js";
-import produccionpsRouter from "./routes/produccionps.js";
+import movimientosRouter from "./routes/almacen/movimientos.js";
+import inventarioRouter from "./routes/almacen/inventario.js";
+import produccionpiRouter from "./routes/inyeccion/produccionpi.js";
+import produccionpsRouter from "./routes/procesos/produccionps.js";
+import psordenesproduccionRouter from "./routes/procesos/psordenesproduccion.js";
+import piordenesproduccionRouter from "./routes/inyeccion/piordenesproduccion.js";
 import { pool } from "./db.js"; // usamos el pool para shutdown
 
 const app = express();
@@ -71,10 +73,15 @@ app.get("/", (req, res) => {
 });
 
 // Montar routers
+  // routers de Almacén
 app.use("/", movimientosRouter);
 app.use("/", inventarioRouter);
+  // routers de Inyección
 app.use("/", produccionpiRouter);
+app.use("/", piordenesproduccionRouter);
+  //routers de Procesos Secundarios 
 app.use("/", produccionpsRouter);
+app.use("/", psordenesproduccionRouter);
 
 // ---------- MIDDLEWARE DE ERRORES ----------
 app.use((err, req, res, next) => {

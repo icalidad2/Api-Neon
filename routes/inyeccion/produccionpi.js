@@ -1,5 +1,5 @@
 import express from "express";
-import { pool } from "../db.js";
+import { pool } from "../../db.js";
 
 const router = express.Router();
 
@@ -30,9 +30,9 @@ function normalizarClaves(obj) {
 }
 
 // ======================================================
-// 🚀 Endpoint: /sync_produccionps
+// 🚀 Endpoint: /sync_produccionpi
 // ======================================================
-router.post("/sync_produccionps", async (req, res) => {
+router.post("/sync_produccionpi", async (req, res) => {
   try {
     const p = normalizarClaves(req.body);
     console.log("📦 Datos recibidos y normalizados:", p);
@@ -65,7 +65,7 @@ router.post("/sync_produccionps", async (req, res) => {
     // 💾 Inserción / actualización automática
     // ======================================================
     await pool.query(
-      `INSERT INTO produccionps (
+      `INSERT INTO produccionpi (
         id_registro, id_op, fecha_hora, producto, color,
         turno, cantidad, lote, operador, supervisor
       )
@@ -89,7 +89,7 @@ router.post("/sync_produccionps", async (req, res) => {
       mensaje: `✅ Registro de producción ${p.id_registro} sincronizado correctamente en Neon.`,
     });
   } catch (err) {
-    console.error("❌ Error en inserción de ProduccionPS:", err);
+    console.error("❌ Error en inserción de ProduccionPI:", err);
     res.status(500).json({
       ok: false,
       mensaje: "Error al insertar o actualizar registro de Producción",
