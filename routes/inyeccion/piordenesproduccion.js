@@ -60,51 +60,51 @@ router.post("/sync_piordenesproduccion", async (req, res) => {
     // ======================================================
     // 💾 Inserción o actualización idempotente (solo campos requeridos)
     // ======================================================
-    const valores = [
-      o.id_orden,
-      o.fecha_emision || null,
-      o.fecha_inicio || null,
-      o.producto || null,
-      o.lote || null,
-      o.maquina || null,
-      cantidadSolicitada,
-      o.cantidad_fabricada || 0,
-      o.unidad || null,
-      o.fecha_requerida || null,
-      o.estado || null,
-      o.qr_info || null,
-      o.qr_url || null,
-      o.responsable || null,
-      o.fecha_cierre || null,
-      o.notas || null
-    ];
+// ======================================================
+// 💾 Inserción o actualización idempotente (solo campos requeridos)
+// ======================================================
+const valores = [
+  o.id_orden,
+  o.fecha_emision || null,
+  o.fecha_inicio || null,
+  o.producto || null,
+  o.lote || null,
+  o.maquina || null,
+  cantidadSolicitada,
+  o.unidad || null,
+  o.fecha_requerida || null,
+  o.fecha_cierre || null,
+  o.qr_info || null,
+  o.qr_url || null,
+  o.responsable || null,
+  o.notas || null
+];
 
-    await pool.query(
-      `INSERT INTO piordenesproduccion (
-        id_orden, fecha_emision, fecha_inicio, producto, lote, maquina,
-        cantidad_solicitada, cantidad_fabricada, unidad, fecha_requerida,
-        estado, qr_info, qr_url, responsable, fecha_cierre, notas
-      )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-      ON CONFLICT (id_orden)
-      DO UPDATE SET
-        fecha_emision = EXCLUDED.fecha_emision,
-        fecha_inicio = EXCLUDED.fecha_inicio,
-        producto = EXCLUDED.producto,
-        lote = EXCLUDED.lote,
-        maquina = EXCLUDED.maquina,
-        cantidad_solicitada = EXCLUDED.cantidad_solicitada,
-        cantidad_fabricada = EXCLUDED.cantidad_fabricada,
-        unidad = EXCLUDED.unidad,
-        fecha_requerida = EXCLUDED.fecha_requerida,
-        estado = EXCLUDED.estado,
-        qr_info = EXCLUDED.qr_info,
-        qr_url = EXCLUDED.qr_url,
-        responsable = EXCLUDED.responsable,
-        fecha_cierre = EXCLUDED.fecha_cierre,
-        notas = EXCLUDED.notas;`,
-      valores
-    );
+await pool.query(
+  `INSERT INTO piordenesproduccion (
+    id_orden, fecha_emision, fecha_inicio, producto, lote, maquina,
+    cantidad_solicitada, unidad, fecha_requerida, fecha_cierre,
+    qr_info, qr_url, responsable, notas
+  )
+  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+  ON CONFLICT (id_orden)
+  DO UPDATE SET
+    fecha_emision = EXCLUDED.fecha_emision,
+    fecha_inicio = EXCLUDED.fecha_inicio,
+    producto = EXCLUDED.producto,
+    lote = EXCLUDED.lote,
+    maquina = EXCLUDED.maquina,
+    cantidad_solicitada = EXCLUDED.cantidad_solicitada,
+    unidad = EXCLUDED.unidad,
+    fecha_requerida = EXCLUDED.fecha_requerida,
+    fecha_cierre = EXCLUDED.fecha_cierre,
+    qr_info = EXCLUDED.qr_info,
+    qr_url = EXCLUDED.qr_url,
+    responsable = EXCLUDED.responsable,
+    notas = EXCLUDED.notas;`,
+  valores
+);
+
 
     res.json({
       ok: true,
