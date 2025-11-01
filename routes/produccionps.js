@@ -30,9 +30,9 @@ function normalizarClaves(obj) {
 }
 
 // ======================================================
-// 🚀 Endpoint: /sync_produccionpi
+// 🚀 Endpoint: /sync_produccionps
 // ======================================================
-router.post("/sync_produccionpi", async (req, res) => {
+router.post("/sync_produccionps", async (req, res) => {
   try {
     const p = normalizarClaves(req.body);
     console.log("📦 Datos recibidos y normalizados:", p);
