@@ -8,58 +8,66 @@ import helmet from "helmet";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import compression from "compression";
+
 import movimientosRouter from "./routes/almacen/movimientos.js";
 import inventarioRouter from "./routes/almacen/inventario.js";
 import produccionpiRouter from "./routes/inyeccion/produccionpi.js";
 import produccionpsRouter from "./routes/procesos/produccionps.js";
 import psordenesproduccionRouter from "./routes/procesos/psordenesproduccion.js";
 import piordenesproduccionRouter from "./routes/inyeccion/piordenesproduccion.js";
-import { pool } from "#db";
 
+import { pool } from "#db";
+import dashboardRouter from "./routes/dashboard.js";
+
+// ---------- APP (debe ir ANTES de usar app.use) ----------
 const app = express();
 
 // ---------- CONFIGURACIONES BASICAS ----------
-app.set("trust proxy", true); // si lo pones en prod detrás de proxy/load balancer
+app.set("trust proxy", 1);
 
 // Seguridad HTTP headers
 app.use(helmet());
 
-// Logging de peticiones (modo dev)
+// Logging de peticiones
 if (process.env.NODE_ENV !== "production") {
   app.use(morgan("dev"));
 } else {
   app.use(morgan("combined"));
 }
 
-// CORS - ajusta el origen según tu caso
+// CORS
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN || "*", // en prod mete tu dominio aquí
+  origin: process.env.CORS_ORIGIN || "*",
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
 };
 app.use(cors(corsOptions));
 
-// Compresión de respuesta
+// Compresión
 app.use(compression());
 
-// Limitar tamaño de petición y parseo JSON
-app.use(express.json({ limit: "200kb" })); // ajusta según necesidades
+// Body parser
+app.use(express.json({ limit: "200kb" }));
 app.use(express.urlencoded({ extended: true, limit: "200kb" }));
 
-// Rate limiter básico
+// Rate limiter
 const limiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minuto
-  max: parseInt(process.env.RATE_LIMIT_MAX || "120", 10), // número de requests por window
+  windowMs: 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_MAX || "120", 10),
   standardHeaders: true,
   legacyHeaders: false
 });
 app.use(limiter);
 
 // ---------- RUTAS ----------
+
+// Dashboard primero
+app.use("/", dashboardRouter);
+
 // Health checks
 app.get("/health", (req, res) => res.json({ status: "ok", uptime: process.uptime() }));
+
 app.get("/ready", async (req, res) => {
   try {
-    // rápido ping a la BD
     await pool.query("SELECT 1");
     res.json({ ready: true });
   } catch (err) {
@@ -72,14 +80,15 @@ app.get("/", (req, res) => {
   res.json({ estado: "OK", hora: new Date().toISOString() });
 });
 
-// Montar routers
-  // routers de Almacén
+// Routers de Almacén
 app.use("/", movimientosRouter);
 app.use("/", inventarioRouter);
-  // routers de Inyección
+
+// Routers de Inyección
 app.use("/", produccionpiRouter);
 app.use("/", piordenesproduccionRouter);
-  //routers de Procesos Secundarios 
+
+// Routers de Procesos Secundarios
 app.use("/", produccionpsRouter);
 app.use("/", psordenesproduccionRouter);
 
@@ -90,7 +99,6 @@ app.use((err, req, res, next) => {
   res.status(status).json({
     ok: false,
     mensaje: err.message || "Error interno del servidor",
-    // en dev puedes incluir stack
     ...(process.env.NODE_ENV !== "production" ? { stack: err.stack } : {})
   });
 });
@@ -103,8 +111,7 @@ const server = app.listen(PORT, HOST, () => {
   console.log(`✅ API lista en ${HOST}:${PORT}`);
 });
 
-
-// cerrar pool y servidor limpio
+// Shutdown limpio
 const shutdown = async (signal) => {
   try {
     console.log(`🔌 Recibido ${signal} — cerrando servidor...`);
@@ -119,11 +126,10 @@ const shutdown = async (signal) => {
       }
     });
 
-    // forzar salida si tarda mucho
     setTimeout(() => {
       console.warn("🚨 Shutdown forzado.");
       process.exit(1);
-    }, 10_000).unref();
+    }, 10000).unref();
 
   } catch (err) {
     console.error("❌ Error en shutdown:", err);
